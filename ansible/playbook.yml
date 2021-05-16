@@ -1,0 +1,126 @@
+---
+  - name: Deploy Wordpress to AWS Ubuntu Linux
+    hosts: tag_Name_WordPress_Server
+    become: yes
+    remote_user: ubuntu
+    vars_files:
+    - roles/wordpress_deploy/vars/main.yml
+    tasks:
+    - ping:
+
+    - name: Install prerequisites
+      apt: name=aptitude update_cache=yes state=latest force_apt_get=yes
+
+    - name: Install LEMP Stack
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: [ 'nginx', 'mysql-server', 'php-fpm', 'php-mysql', 'python3-pymysql']
+
+    - name: Install PHP Extensions
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: "{{ php_modules }}"
+
+  # MySQL Configuration
+
+    - name: Is mysql running?
+      systemd: name=mysql state=started
+
+    - name: Set the root password
+      mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+      tags: [ mysql, mysql-root ]
+
+#    - name: Remove all anonymous user accounts
+#      mysql_user:
+#        name: ''
+#        host_all: yes
+#        state: absent
+#        login_user: root
+#        login_password: "{{ mysql_root_password }}"
+#      tags: [ mysql ]
+#
+#    - name: Remove the MySQL test database
+#      mysql_db:
+#        name: test
+#        state: absent
+#        login_user: root
+#        login_password: "{{ mysql_root_password }}"
+#      tags: [ mysql ]
+#
+    - name: Creates database for WordPress
+      mysql_db:
+        name: "{{ mysql_db }}"
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      tags: [ mysql ]
+
+    - name: Create MySQL user for WordPress
+      mysql_user:
+        name: "{{ mysql_user }}"
+        password: "{{ mysql_password }}"
+        priv: "{{ mysql_db }}.*:ALL"
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      tags: [ mysql ]
+
+  # WordPress Configuration
+
+    - name: Download and unpack latest WordPress
+      unarchive:
+        src: https://wordpress.org/latest.tar.gz
+        dest: "/var/www/html"
+        remote_src: yes
+        creates: "/var/www/html/wordpress"
+      tags: [ wordpress ]
+
+    - name: Set ownership
+      file:
+        path: "/var/www/html"
+        state: directory
+        recurse: yes
+        owner: www-data
+        group: www-data
+      tags: [ wordpress ]
+
+    - name: Set permissions for directories
+      shell: "/usr/bin/find /var/www/html/wordpress/ -type d -exec chmod 750 {} \\;"
+      tags: [ wordpress ]
+
+    - name: Set permissions for files
+      shell: "/usr/bin/find /var/www/html/wordpress/ -type f -exec chmod 640 {} \\;"
+      tags: [ wordpress ]
+
+    - name: Nginx config
+      copy:
+        src: "roles/wordpress_deploy/files/nginx.conf"
+        dest: "/etc/nginx/nginx.conf"
+
+    - name: Site config
+      copy:
+        src: "roles/wordpress_deploy/files/wordpress"
+        dest: "/etc/nginx/sites-available/wordpress"
+
+    - name: Site enable
+      shell: "ln -sf /etc/nginx/sites-available/wordpress /etc/nginx/sites-enabled/wordpress"
+      tags: [ wordpress ]
+
+    - name: Set up wp-config
+      template:
+        src: "roles/wordpress_deploy/templates/wp-config.php.j2"
+        dest: "/var/www/html/wordpress/wp-config.php"
+      tags: [ wordpress ]
+      notify: Reload Nginx
+
+    handlers:
+    - name: Reload Nginx
+      service: name=nginx state=reloaded
+
+    - name: Restart Nginx
+      service: name=nginx state=restarted
+    
+    
