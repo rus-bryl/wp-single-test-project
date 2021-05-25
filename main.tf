@@ -1,6 +1,4 @@
-provider "aws" {
-  region = "eu-central-1"
-}
+
 
 data "aws_ami" "latest_ubuntu_linux" {
   owners      = ["099720109477"]
@@ -11,9 +9,6 @@ data "aws_ami" "latest_ubuntu_linux" {
   }
 }
 
-resource "aws_eip" "wp_static_ip" {
-  instance = aws_instance.wp_server.id
-}
 
 #=====================SSH Keys===============================
 variable "ssh_key" {
@@ -39,47 +34,3 @@ resource "aws_instance" "wp_server" {
   }
 }
 
-resource "aws_security_group" "wp_server" {
-  name        = "WebServer Security Group"
-  description = "Wordpress SecurityGruop"
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name  = "Wordpress SecurityGroup"
-    Owner = "Ruslan Bryl"
-  }
-}
-#===============Outputs======================
-output "wp_server_ip" {
-  value = aws_instance.wp_server.public_ip
-}
-
-output "wp_server_dns" {
-  value = aws_instance.wp_server.public_dns
-}
