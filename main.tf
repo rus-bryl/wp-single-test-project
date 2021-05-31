@@ -9,16 +9,6 @@ data "aws_ami" "latest_ubuntu_linux" {
   }
 }
 
-
-#=====================SSH Keys===============================
-variable "ssh_key" {
-  default = "~/.ssh/id_rsa.pub"
-}
-
-resource "aws_key_pair" "deployer" {
-  key_name   = "deployer-key"
-  public_key = file(var.ssh_key)
-}
 #====================Wordpress Server=========================
 resource "aws_instance" "wp_server" {
   ami                    = data.aws_ami.latest_ubuntu_linux.id
